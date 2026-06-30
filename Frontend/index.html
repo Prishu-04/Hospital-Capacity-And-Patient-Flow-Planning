@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hospital Capacity & Patient Flow · Data Profiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:        #F1F5F9;
+  --surface:   #E2E8F0;
+  --card:      #FFFFFF;
+  --border:    rgba(0,0,0,0.08);
+  --teal:      #6366F1;
+  --teal-dim:  #4F46E5;
+  --blue:      #2563EB;
+  --amber:     #F59E0B;
+  --red:       #DC2626;
+  --green:     #16A34A;
+  --text:      #111111;
+  --muted:     #777777;
+  --mono:      'IBM Plex Mono', monospace;
+  --card-shadow: 0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── NAVBAR ── */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(241,245,249,0.92);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px; height: 56px;
+}
+.nav-logo {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; font-size: 15px;
+}
+.nav-logo .pulse {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 8px var(--teal);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(0.85)} }
+.nav-links { display:flex; gap:4px; }
+.nav-link {
+  padding: 6px 14px; border-radius: 8px;
+  font-size: 13px; font-weight: 500;
+  color: var(--muted); cursor: pointer;
+  border: none; background: transparent;
+  transition: all .2s;
+}
+.nav-link:hover, .nav-link.active {
+  color: var(--text); background: var(--card);
+}
+.nav-link.active { color: var(--teal); }
+.nav-badge {
+  background: var(--teal); color: #FFFFFF;
+  font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 20px;
+  margin-left: 8px;
+}
+
+/* ── SECTIONS ── */
+section { display: none; }
+section.visible { display: block; }
+
+/* ── HERO / OVERVIEW ── */
+.hero {
+  padding: 60px 40px 40px;
+  max-width: 1200px; margin: 0 auto;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(99,102,241,0.3); border: 1px solid rgba(0,212,170,.25);
+  color: var(--teal); border-radius: 20px;
+  padding: 4px 14px; font-size: 12px; font-weight: 600;
+  letter-spacing: .05em; margin-bottom: 20px;
+}
+h1, h2, h3, h4, .ds-title { font-family: 'Playfair Display', serif; }
+.hero h1 {
+  font-size: clamp(28px, 4vw, 48px);
+  font-weight: 800; line-height: 1.1;
+  letter-spacing: -.02em; margin-bottom: 14px;
+}
+.hero h1 span { color: var(--teal); }
+.hero p {
+  font-size: 16px; color: var(--muted);
+  max-width: 620px; margin-bottom: 36px;
+}
+.kpi-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 16px; margin-bottom: 40px;
+}
+.kpi {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px 22px;
+  box-shadow: var(--card-shadow); position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.kpi:hover { border-color: var(--teal); transform: translateY(-2px); }
+.kpi::before {
+  content:''; position:absolute; inset:0;
+  background: linear-gradient(135deg, rgba(99,102,241,0.2) 0%, transparent 60%);
+  pointer-events: none;
+}
+.kpi-value { font-size: 28px; font-weight: 800; }
+.kpi-label { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
+.kpi-delta { font-size: 11px; margin-top: 6px; }
+.kpi-delta.up { color: var(--green); }
+.kpi-delta.down { color: var(--red); }
+.kpi-delta.neu { color: var(--muted); }
+
+.overview-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media(max-width:720px){ .overview-grid{grid-template-columns:1fr;} }
+.ov-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; box-shadow: var(--card-shadow); padding: 24px;
+}
+.ov-card h3 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 16px; }
+.step-list { display: flex; flex-direction: column; gap: 10px; }
+.step {
+  display: flex; align-items: flex-start; gap: 12px;
+  font-size: 13px;
+}
+.step-num {
+  min-width: 24px; height: 24px; border-radius: 6px;
+  background: rgba(99,102,241,0.4); color: var(--teal);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.quality-bar { margin-bottom: 14px; }
+.qb-label { display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px; }
+.qb-track { height: 7px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.qb-fill { height: 100%; border-radius: 99px; transition: width 1s ease; }
+.tag-list { display:flex; flex-wrap:wrap; gap:8px; }
+.tag {
+  background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.25);
+  color: #93c5fd; border-radius: 8px; padding: 4px 10px; font-size: 12px;
+}
+
+/* ── DATASET VIEWER ── */
+#dataset-section { padding: 32px 40px; max-width: 1200px; margin: 0 auto; }
+.ds-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom: 24px; }
+.ds-title { font-size: 20px; font-weight: 700; }
+.ds-controls { display:flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ds-year-toggle {
+  display: flex; background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.ds-year-btn {
+  padding: 7px 16px; font-size: 13px; font-weight: 600;
+  border: none; background: transparent; color: var(--muted); cursor: pointer;
+  transition: all .2s;
+}
+.ds-year-btn.active { background: var(--teal); color: #FFFFFF; }
+
+.clean-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 20px; border-radius: 10px;
+  font-size: 13px; font-weight: 700; letter-spacing: .04em;
+  border: none; cursor: pointer;
+  background: var(--teal);
+  color: #FFFFFF; transition: all .2s;
+  box-shadow: 0 0 0 0 rgba(99,102,241,0.4);
+}
+.clean-btn:hover { box-shadow: 0 0 18px rgba(99,102,241,0.5); transform: scale(1.04); }
+.clean-btn svg { transition: transform .3s; }
+.clean-btn:hover svg { transform: rotate(20deg); }
+
+.ds-meta {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.meta-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 500;
+}
+.meta-pill .dot { width:8px; height:8px; border-radius:50%; }
+
+.state-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px; border-radius: 12px; margin-bottom: 16px;
+  font-size: 13px; font-weight: 500;
+  transition: all .4s;
+}
+.state-banner.raw { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25); color: #fca5a5; }
+.state-banner.clean { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.25); color: #86efac; }
+
+.table-wrap {
+  overflow-x: auto; overflow-y: auto; max-height: 460px;
+  border: 1px solid var(--border); border-radius: 14px;
+}
+table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; }
+thead { position: sticky; top: 0; z-index: 5; }
+th {
+  background: var(--surface); color: var(--text); padding: 10px 14px; text-align: left;
+  font-size: 10px; font-weight: 600; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+td {
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+  white-space: nowrap; transition: background .3s;
+}
+tr:hover td { background: rgba(0,0,0,0.02); }
+.td-null {
+  color: #ef4444 !important;
+  background: rgba(239,68,68,.08) !important;
+}
+.td-fixed {
+  color: #22c55e !important;
+  background: rgba(34,197,94,.08) !important;
+}
+@keyframes cellFlash {
+  0%  { background: rgba(239,68,68,.25); }
+  50% { background: rgba(245,158,11,.2); }
+  100%{ background: rgba(34,197,94,.1); }
+}
+.cell-cleaning { animation: cellFlash .8s forwards; }
+
+/* ── CHARTS SECTION ── */
+#charts-section { padding: 32px 40px; max-width: 1280px; margin: 0 auto; }
+.charts-header { margin-bottom: 28px; }
+.charts-header h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+.charts-header p { color: var(--muted); font-size: 14px; }
+
+.chart-tabs { display:flex; gap:6px; margin-bottom: 24px; flex-wrap:wrap; }
+.chart-tab {
+  padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--card); color: var(--muted);
+  cursor: pointer; transition: all .2s;
+}
+.chart-tab.active { background: var(--teal); color:#FFFFFF; border-color: var(--teal); }
+
+.chart-panel { display: none; }
+.chart-panel.active { display: grid; }
+.chart-panel.one-col { grid-template-columns: 1fr; }
+.chart-panel.two-col { grid-template-columns: 1fr 1fr; gap: 20px; }
+.chart-panel.three-col { grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+@media(max-width:900px){ .chart-panel.two-col,.chart-panel.three-col { grid-template-columns:1fr; } }
+
+.chart-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 22px; box-shadow: var(--card-shadow); position: relative;
+}
+.chart-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.chart-card .chart-sub { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+.chart-card canvas { max-height: 280px; }
+.chart-card.tall canvas { max-height: 360px; }
+
+.insight-box {
+  margin-top: 14px; padding: 10px 14px;
+  background: rgba(0,212,170,.07); border-left: 3px solid var(--teal);
+  border-radius: 0 8px 8px 0; font-size: 12px; color: #94d6c8;
+}
+
+/* quality heatmap */
+.heatmap-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+}
+.hm-cell {
+  height: 36px; border-radius: 6px; display:flex; align-items:center; justify-content:center;
+  font-size: 10px; font-weight: 600; text-align: center; padding: 2px; line-height: 1.2;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background: #2a3d5c; }
+
+/* transitions */
+.fade-in { animation: fadeIn .35s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+</style>
+
+<style>
+  .team-grid {
+    display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px;
+  }
+  .team-member {
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex: 1;
+    min-width: 280px;
+  }
+  .team-member:hover {
+    border-color: var(--teal);
+    transform: translateY(-2px);
+  }
+  .team-member-header {
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .team-member-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, padding 0.4s ease;
+    background: var(--card);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .team-member.active .team-member-content {
+    max-height: 400px;
+    padding-bottom: 20px;
+  }
+  .team-member img {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-top: 20px;
+    border: 2px solid var(--teal);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .team-member p {
+    padding: 16px 20px 0;
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .toggle-icon {
+    font-size: 20px; color: var(--muted); transition: transform 0.3s;
+  }
+  .team-member.active .toggle-icon {
+    transform: rotate(180deg); color: var(--teal);
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <div class="pulse"></div>
+    Data Profiler <span style="color:var(--muted);font-weight:400"> · Hospital Ops</span>
+  </div>
+  <div class="nav-links">
+    <button class="nav-link active" onclick="showSection('overview',this)">Overview</button>
+    <button class="nav-link" onclick="showSection('dataset',this)">Dataset Viewer</button>
+    <button class="nav-link" onclick="showSection('charts',this)">Analytics <span class="nav-badge">8</span></button>
+  </div>
+</nav>
+
+<!-- ══════════ OVERVIEW ══════════ -->
+<section id="overview-section" class="visible">
+<div class="hero">
+
+  <div class="hero-badge">
+    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+    Health &amp; Life Sciences · Hospitals &amp; Clinical Operations
+  </div>
+
+  <h1>Hospital Capacity &amp;<br><span>Patient-Flow</span> Profiler</h1>
+  <p>A reproducible data workflow for hospital operations — profiling schema, missingness, outliers, and trends across two time periods without predictive modelling.</p>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-value" id="kpiTotalRecords" style="color:var(--teal)">—</div>
+      <div class="kpi-label">Total Records</div>
+      <div class="kpi-delta neu" id="kpiTotalRecordsSub">loading…</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value" id="kpiRawNulls" style="color:var(--amber)">—</div>
+      <div class="kpi-label">Raw Null Cells</div>
+      <div class="kpi-delta up" id="kpiRawNullsSub">loading…</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value" id="kpiDuplicates" style="color:var(--red)">—</div>
+      <div class="kpi-label">Duplicates Removed</div>
+      <div class="kpi-delta up">↓ 0 in cleaned set</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value" id="kpiOccupancy" style="color:var(--blue)">—</div>
+      <div class="kpi-label">Avg Bed Occupancy</div>
+      <div class="kpi-delta neu">2025 baseline</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value" id="kpiWait" style="color:var(--green)">—</div>
+      <div class="kpi-label">Avg Wait Time 2025</div>
+      <div class="kpi-delta up" id="kpiWaitSub">loading…</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value" id="kpiHospitals">—</div>
+      <div class="kpi-label">Hospitals Profiled</div>
+      <div class="kpi-delta neu" id="kpiHospitalsSub">loading…</div>
+    </div>
+  </div>
+
+  <!-- overview grid -->
+  <div class="overview-grid">
+
+    <div class="ov-card">
+      <h3>Pipeline Steps</h3>
+      <div class="step-list">
+        <div class="step"><div class="step-num">1</div><div><strong>Load Raw Data</strong> — 2 CSVs, 2908 rows each, 26 columns</div></div>
+        <div class="step"><div class="step-num">2</div><div><strong>Profile</strong> — schema, dtypes, nulls, duplicates, stats</div></div>
+        <div class="step"><div class="step-num">3</div><div><strong>Data Dictionary</strong> — auto-generated per column</div></div>
+        <div class="step"><div class="step-num">4</div><div><strong>Quality Assessment</strong> — 8 validation checks</div></div>
+        <div class="step"><div class="step-num">5</div><div><strong>Reproducible Cleaning</strong> — dedup, impute, standardise, clip IQR outliers</div></div>
+        <div class="step"><div class="step-num">6</div><div><strong>Feature Engineering</strong> — occupancy rate, turnover, net flow, patients/staff, capacity status</div></div>
+        <div class="step"><div class="step-num">7</div><div><strong>Visualise &amp; Compare</strong> — 8 charts, 2025 vs 2026 YoY</div></div>
+      </div>
+    </div>
+
+    <div class="ov-card">
+      <h3>Data Quality Scorecard</h3>
+      <div class="quality-bar">
+        <div class="qb-label"><span>Completeness (post-clean)</span><span id="qbCompletenessLabel" style="color:var(--green)">—</span></div>
+        <div class="qb-track"><div class="qb-fill" id="qbCompletenessFill" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="quality-bar">
+        <div class="qb-label"><span>Duplicate Removal</span><span style="color:var(--teal)">100%</span></div>
+        <div class="qb-track"><div class="qb-fill" style="width:100%;background:var(--teal)"></div></div>
+      </div>
+      <div class="quality-bar">
+        <div class="qb-label"><span>Schema Consistency</span><span style="color:var(--blue)">100%</span></div>
+        <div class="qb-track"><div class="qb-fill" style="width:100%;background:var(--blue)"></div></div>
+      </div>
+      <div class="quality-bar">
+        <div class="qb-label"><span>Outlier Resolution (IQR clip)</span><span style="color:var(--amber)">97.2%</span></div>
+        <div class="qb-track"><div class="qb-fill" style="width:97.2%;background:var(--amber)"></div></div>
+      </div>
+      <div class="quality-bar">
+        <div class="qb-label"><span>Date Parsing</span><span style="color:var(--green)">100%</span></div>
+        <div class="qb-track"><div class="qb-fill" style="width:100%;background:var(--green)"></div></div>
+      </div>
+      <div style="margin-top:20px">
+        <h3 style="margin-bottom:12px">Stack</h3>
+        <div class="tag-list">
+          <span class="tag">Python 3</span><span class="tag">Pandas</span>
+          <span class="tag">NumPy</span><span class="tag">Matplotlib</span>
+          <span class="tag">Chart.js</span><span class="tag">HTML / CSS</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end overview-grid -->
+
+  <!-- responsible AI note -->
+  <div style="margin-top:24px; padding:16px 20px; background:var(--card); border:1px solid var(--border); border-radius:14px; font-size:13px; color:var(--muted);">
+    <strong style="color:var(--amber)">⚠ Responsible AI</strong> — This project does not forecast demand or recommend clinical treatment. Aggregated data may hide patient-level variation. Unusual values may represent real emergencies and were reviewed, not automatically deleted. Results depend on completeness of source data. Observed relationships do not establish causation.
+  </div>
+
+  <!-- project details -->
+  <div style="margin-top:24px; padding:24px; background:var(--card); border:1px solid var(--border); border-radius:14px; font-size:14px; color:var(--muted); box-shadow: var(--card-shadow);">
+    <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 12px; font-family: 'Playfair Display', serif;">Project Details & Contributors</h3>
+    <p style="margin-bottom: 20px; line-height: 1.6;">This full-stack dashboard provides actionable operational insights from raw hospital records. The system features a robust machine learning/data processing pipeline, a scalable backend architecture, and a modern frontend interface to help clinical administrators optimize capacity and patient flow.</p>
+    <h4 style="font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 12px; font-family: 'Inter', sans-serif;">Team Members</h4>
+    <div class="team-grid">
+      <!-- Pragyan -->
+      <div class="team-member" onclick="this.classList.toggle('active')">
+        <div class="team-member-header">
+          <div>
+            <strong style="color:var(--text); font-size: 16px;">Pragyan</strong><br>
+            <span style="font-size: 13px; color:var(--teal); font-weight: 600;">Backend Developer</span>
+          </div>
+          <div class="toggle-icon">?</div>
+        </div>
+        <div class="team-member-content">
+          <img src="pragyan.jpg" alt="Pragyan" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23E2E8F0\'/%3E%3Ctext x=\'50\' y=\'55\' font-family=\'sans-serif\' font-size=\'14\' fill=\'%23777\' text-anchor=\'middle\'%3ENo Image%3C/text%3E%3C/svg%3E'">
+          <p>Pragyan engineered the robust Flask API and integrated the rigorous Pandas-based data cleaning pipeline, ensuring high performance, accurate outlier detection, and live metrics generation.</p>
+        </div>
+      </div>
+
+      <!-- Pratyaksh -->
+      <div class="team-member" onclick="this.classList.toggle('active')">
+        <div class="team-member-header">
+          <div>
+            <strong style="color:var(--text); font-size: 16px;">Pratyaksh</strong><br>
+            <span style="font-size: 13px; color:var(--teal); font-weight: 600;">Machine Learning & Data</span>
+          </div>
+          <div class="toggle-icon">?</div>
+        </div>
+        <div class="team-member-content">
+          <img src="pratyaksh.jpg" alt="Pratyaksh" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23E2E8F0\'/%3E%3Ctext x=\'50\' y=\'55\' font-family=\'sans-serif\' font-size=\'14\' fill=\'%23777\' text-anchor=\'middle\'%3ENo Image%3C/text%3E%3C/svg%3E'">
+          <p>Pratyaksh conceptualised the data architecture, developed the analytical models for occupancy and patient flow, and designed the comprehensive data quality assessment checks.</p>
+        </div>
+      </div>
+
+      <!-- Anshul -->
+      <div class="team-member" onclick="this.classList.toggle('active')">
+        <div class="team-member-header">
+          <div>
+            <strong style="color:var(--text); font-size: 16px;">Anshul</strong><br>
+            <span style="font-size: 13px; color:var(--teal); font-weight: 600;">Frontend Developer</span>
+          </div>
+          <div class="toggle-icon">?</div>
+        </div>
+        <div class="team-member-content">
+          <img src="anshul.jpg" alt="Anshul" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23E2E8F0\'/%3E%3Ctext x=\'50\' y=\'55\' font-family=\'sans-serif\' font-size=\'14\' fill=\'%23777\' text-anchor=\'middle\'%3ENo Image%3C/text%3E%3C/svg%3E'">
+          <p>Anshul created the sleek, responsive UI and integrated Chart.js to visualise complex hospital metrics interactively, providing administrators with an intuitive dashboard experience.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</section>
+
+<!-- ══════════ DATASET VIEWER ══════════ -->
+<section id="dataset-section">
+<div id="dataset-inner">
+  <div class="ds-header">
+    <div class="ds-title">Dataset Viewer</div>
+    <div class="ds-controls">
+      <div class="ds-year-toggle">
+        <button class="ds-year-btn active" onclick="setYear('2025',this)">2025 Baseline</button>
+        <button class="ds-year-btn" onclick="setYear('2026',this)">2026 Comparison</button>
+      </div>
+      <button class="clean-btn" id="cleanBtn" onclick="triggerClean()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span id="cleanBtnText">CLEAN DATA</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- meta pills -->
+  <div class="ds-meta" id="dsMeta">
+    <div class="meta-pill"><div class="dot" style="background:var(--amber)"></div><span id="metaRows">2 908 raw rows</span></div>
+    <div class="meta-pill"><div class="dot" style="background:var(--red)"></div><span id="metaNulls">2 929 null cells</span></div>
+    <div class="meta-pill"><div class="dot" style="background:var(--red)"></div><span id="metaDups">28 duplicates</span></div>
+    <div class="meta-pill"><div class="dot" style="background:var(--blue)"></div><span>26 columns</span></div>
+    <div class="meta-pill"><div class="dot" style="background:var(--muted)"></div><span id="metaDeptHosp">4 hospitals · 6 departments</span></div>
+  </div>
+
+  <!-- state banner -->
+  <div class="state-banner raw" id="stateBanner">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+    <span>Showing <strong>RAW</strong> dataset — red cells indicate missing / null values. Press <strong>CLEAN DATA</strong> to apply the pipeline.</span>
+  </div>
+
+  <div class="table-wrap" id="tableWrap">
+    <table id="dataTable">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+  <p style="font-size:11px;color:var(--muted);margin-top:8px;padding-left:4px">Showing first 20 of <span id="totalRows">2 908</span> records · Scroll horizontally to see all columns</p>
+</div>
+</section>
+
+<!-- ══════════ CHARTS ══════════ -->
+<section id="charts-section">
+  <div class="charts-header">
+    <h2>Analytics &amp; Visualisations</h2>
+    <p>8 interactive charts comparing 2025 Baseline vs 2026 Comparison across occupancy, wait times, admissions and staffing.</p>
+  </div>
+
+  <div class="chart-tabs">
+    <button class="chart-tab active" onclick="showChartPanel('capacity',this)">Bed Occupancy</button>
+    <button class="chart-tab" onclick="showChartPanel('waittime',this)">Wait Times</button>
+    <button class="chart-tab" onclick="showChartPanel('admissions',this)">Admissions</button>
+    <button class="chart-tab" onclick="showChartPanel('staffing',this)">Staffing</button>
+    <button class="chart-tab" onclick="showChartPanel('quality',this)">Data Quality</button>
+  </div>
+
+  <!-- CAPACITY -->
+  <div class="chart-panel two-col active" id="panel-capacity">
+    <div class="chart-card tall">
+      <h4>Bed Occupancy Rate by Department</h4>
+      <p class="chart-sub">2025 vs 2026 — averaged across all hospitals (%)</p>
+      <canvas id="chart-occ-dept"></canvas>
+      <div class="insight-box" id="insight-occ-dept">Loading…</div>
+    </div>
+    <div class="chart-card">
+      <h4>Occupancy Rate by Hospital</h4>
+      <p class="chart-sub">Average occupancy across both years (%)</p>
+      <canvas id="chart-occ-hospital"></canvas>
+      <div class="insight-box" id="insight-occ-hospital">Loading…</div>
+    </div>
+  </div>
+
+  <!-- WAIT TIME -->
+  <div class="chart-panel two-col" id="panel-waittime">
+    <div class="chart-card">
+      <h4>Average Wait Time by Hospital</h4>
+      <p class="chart-sub">Minutes — 2025 vs 2026</p>
+      <canvas id="chart-wait-hospital"></canvas>
+      <div class="insight-box" id="insight-wait-hospital">Loading…</div>
+    </div>
+    <div class="chart-card">
+      <h4>Monthly Admissions Trend</h4>
+      <p class="chart-sub">Total admissions per hospital per month (2025)</p>
+      <canvas id="chart-monthly"></canvas>
+      <div class="insight-box" id="insight-monthly">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ADMISSIONS -->
+  <div class="chart-panel two-col" id="panel-admissions">
+    <div class="chart-card">
+      <h4>Total Admissions by Department</h4>
+      <p class="chart-sub">2025 vs 2026 — all departments</p>
+      <canvas id="chart-adm-dept"></canvas>
+      <div class="insight-box" id="insight-adm-dept">Loading…</div>
+    </div>
+    <div class="chart-card">
+      <h4>Admissions by Region</h4>
+      <p class="chart-sub">Total patient admissions per region (donut, both years)</p>
+      <canvas id="chart-adm-region"></canvas>
+      <div class="insight-box" id="insight-adm-region">Loading…</div>
+    </div>
+  </div>
+
+  <!-- STAFFING -->
+  <div class="chart-panel two-col" id="panel-staffing">
+    <div class="chart-card">
+      <h4>Nurse-to-Bed Ratio by Department</h4>
+      <p class="chart-sub">Staff nurses per operational bed (2025)</p>
+      <canvas id="chart-nurse-bed"></canvas>
+      <div class="insight-box" id="insight-nurse-bed">Loading…</div>
+    </div>
+    <div class="chart-card">
+      <h4>Elective Surgery Cancellations by Hospital</h4>
+      <p class="chart-sub">Total cancellations (2025)</p>
+      <canvas id="chart-cancellations"></canvas>
+      <div class="insight-box" id="insight-cancellations">Loading…</div>
+    </div>
+  </div>
+
+  <!-- DATA QUALITY -->
+  <div class="chart-panel one-col" id="panel-quality">
+    <div class="chart-card">
+      <h4>Raw Missing Values by Column</h4>
+      <p class="chart-sub">Baseline 2025 — null counts per field before cleaning</p>
+      <canvas id="chart-missing" style="max-height:320px"></canvas>
+      <div class="insight-box" id="insight-missing">Loading…</div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ════════════════ SCRIPTS ════════════════ -->
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// All data on this page comes from the Flask backend's API, computed live
+// from the two real CSV files (dataset1_baseline_2025.csv /
+// dataset2_comparison_2026.csv) and the same cleaning logic as
+// Backend/ML/Datacleaning.py. Nothing below is hardcoded.
+// ════════════════════════════════════════════════════════════════════════
+
+const API = ""; // same-origin: Flask serves this file, so relative paths work
+const TABLE_ROW_LIMIT = 150; // render only the first N rows in the table for performance
+
+const RAW_COLS = ["record_id","date","period","hospital_id","hospital_name","region","department","total_beds","operational_beds","occupied_beds_morning","admissions","discharges","transfers_in","transfers_out","emergency_arrivals","elective_surgeries","cancellations","staff_nurses","staff_doctors","avg_wait_time_min","median_wait_time_min","bed_turnover_time_hr","patients_left_without_seen","isolation_beds_used","source_system","notes"];
+
+let currentYear = '2025', isCleaned = false, isAnimating = false;
+let cache = { raw: {}, clean: {} };
+let summaryData = null;
+let chartsData = null;
+
+// ── FETCH HELPERS ───────────────────────────────────────────────────────
+async function fetchJSON(url) {
+  const res = await fetch(API + url);
+  if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
+  return res.json();
+}
+
+async function getRaw(year) {
+  if (!cache.raw[year]) cache.raw[year] = await fetchJSON(`/api/raw/${year}`);
+  return cache.raw[year];
+}
+
+async function getClean(year) {
+  if (!cache.clean[year]) cache.clean[year] = await fetchJSON(`/api/clean/${year}`);
+  return cache.clean[year];
+}
+
+// ── NAV ──────────────────────────────────────────────────────────────────
+function showSection(id, btn) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('visible', 'fade-in'));
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+  const sec = document.getElementById(id + '-section');
+  sec.classList.add('visible', 'fade-in');
+  btn.classList.add('active');
+  if (id === 'dataset') renderTable();
+  if (id === 'charts') buildCharts();
+}
+
+// ── KPI / SUMMARY (live) ────────────────────────────────────────────────
+async function loadSummary() {
+  try {
+    summaryData = await fetchJSON('/api/summary');
+    const s = summaryData;
+    document.getElementById('kpiTotalRecords').textContent = s.total_records.toLocaleString();
+    document.getElementById('kpiTotalRecordsSub').textContent = `${s.records_per_year['2025'].toLocaleString()} × 2 years`;
+
+    document.getElementById('kpiRawNulls').textContent = s.raw_null_cells_total.toLocaleString();
+    document.getElementById('kpiRawNullsSub').textContent = `↓ ${s.completeness_after_cleaning_pct}% complete after cleaning`;
+
+    document.getElementById('kpiDuplicates').textContent = s.duplicates_removed_total;
+
+    document.getElementById('kpiOccupancy').textContent = s.avg_occupancy_2025 + '%';
+
+    document.getElementById('kpiWait').textContent = s.avg_wait_2025 + ' min';
+    const waitDir = s.wait_change_pct <= 0 ? '↓' : '↑';
+    document.getElementById('kpiWaitSub').textContent = `${waitDir} ${Math.abs(s.wait_change_pct)}% to ${s.avg_wait_2026} min in 2026`;
+
+    document.getElementById('kpiHospitals').textContent = s.n_hospitals;
+    document.getElementById('kpiHospitalsSub').textContent = `${s.n_departments} departments tracked`;
+
+    document.getElementById('qbCompletenessLabel').textContent = s.completeness_after_cleaning_pct + '%';
+    document.getElementById('qbCompletenessFill').style.width = s.completeness_after_cleaning_pct + '%';
+
+    document.getElementById('metaDeptHosp').textContent = `${s.n_hospitals} hospitals · ${s.n_departments} departments`;
+  } catch (e) {
+    console.error('Failed to load summary from backend:', e);
+    document.getElementById('kpiTotalRecords').textContent = '⚠';
+    document.getElementById('kpiTotalRecordsSub').textContent = 'Backend not reachable — is app.py running?';
+  }
+}
+
+// ── DATASET VIEWER ──────────────────────────────────────────────────────
+async function setYear(y, btn) {
+  currentYear = y; isCleaned = false;
+  document.querySelectorAll('.ds-year-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('cleanBtnText').textContent = 'CLEAN DATA';
+  document.getElementById('cleanBtn').style.background = 'linear-gradient(135deg,var(--teal),#00a082)';
+  document.getElementById('cleanBtn').disabled = false;
+  await renderTable(false);
+}
+
+function fmtCell(v) {
+  if (v === null || v === undefined) return { isNull: true, text: '<em>NULL</em>' };
+  return { isNull: false, text: v };
+}
+
+async function renderTable(cleaned) {
+  if (cleaned === undefined) cleaned = isCleaned;
+  const y = currentYear;
+  const tableWrap = document.getElementById('tableWrap');
+  tableWrap.style.opacity = '0.5';
+
+  try {
+    const payload = cleaned ? await getClean(y) : await getRaw(y);
+    const cols = payload.columns;
+    const rows = payload.rows.slice(0, TABLE_ROW_LIMIT);
+
+    const head = document.getElementById('tableHead');
+    const body = document.getElementById('tableBody');
+    head.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
+    body.innerHTML = rows.map(row => {
+      return `<tr>${cols.map(col => {
+        const { isNull, text } = fmtCell(row[col]);
+        return `<td class="${isNull ? 'td-null' : ''}">${text}</td>`;
+      }).join('')}</tr>`;
+    }).join('');
+
+    updateMetaPills(cleaned, payload);
+    updateBanner(cleaned);
+    document.getElementById('totalRows').textContent = payload.rows.length.toLocaleString();
+    document.querySelector('#dataset-inner p[style]').innerHTML =
+      `Showing first ${Math.min(TABLE_ROW_LIMIT, payload.rows.length)} of <span id="totalRows">${payload.rows.length.toLocaleString()}</span> records · Scroll horizontally to see all columns`;
+  } catch (e) {
+    console.error(e);
+    document.getElementById('tableBody').innerHTML =
+      `<tr><td colspan="26" style="color:var(--red);padding:20px">Could not reach the backend at ${API}/api/${cleaned ? 'clean' : 'raw'}/${y}. Is app.py running?</td></tr>`;
+  } finally {
+    tableWrap.style.opacity = '1';
+  }
+}
+
+function updateMetaPills(cleaned, payload) {
+  const rowsPill = document.getElementById('metaRows');
+  const nullsPill = document.getElementById('metaNulls');
+  const dupsPill = document.getElementById('metaDups');
+  if (cleaned) {
+    rowsPill.textContent = `${payload.rows.length.toLocaleString()} clean rows`;
+    nullsPill.textContent = `${payload.log.residual_nulls} residual nulls`;
+    dupsPill.textContent = `0 duplicates (${payload.log.duplicates_removed} removed)`;
+  } else {
+    rowsPill.textContent = `${payload.rows.length.toLocaleString()} raw rows`;
+    nullsPill.textContent = `${payload.stats.null_cells.toLocaleString()} null cells`;
+    dupsPill.textContent = `${payload.stats.duplicate_rows} duplicates`;
+  }
+}
+
+function updateBanner(cleaned) {
+  const b = document.getElementById('stateBanner');
+  if (cleaned) {
+    b.className = 'state-banner clean';
+    b.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span>Showing <strong>CLEANED</strong> dataset — computed live by the real <code>Datacleaning.py</code> pipeline on the backend: duplicates removed, dates re-parsed, department-median imputation, per-department IQR clipping, capacity violations capped, and engineered columns (occupancy_rate, capacity_status, etc.) added.</span>`;
+  } else {
+    b.className = 'state-banner raw';
+    b.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg><span>Showing <strong>RAW</strong> dataset, loaded directly from the CSV — red cells indicate missing / null values. Press <strong>CLEAN DATA</strong> to run the real cleaning pipeline on the backend.</span>`;
+  }
+}
+
+async function triggerClean() {
+  if (isAnimating || isCleaned) return;
+  isAnimating = true;
+  const btn = document.getElementById('cleanBtn');
+  const btnText = document.getElementById('cleanBtnText');
+  btnText.textContent = 'CLEANING…';
+  btn.style.background = 'linear-gradient(135deg,#f59e0b,#d97706)';
+  btn.disabled = true;
+
+  // brief visual flash on currently-null cells while the real request runs
+  const nullCells = [...document.querySelectorAll('.td-null')];
+  nullCells.forEach((cell, i) => {
+    setTimeout(() => {
+      cell.classList.add('cell-cleaning');
+      cell.classList.remove('td-null');
+    }, Math.min(i * 12, 600));
+  });
+
+  try {
+    await getClean(currentYear); // actually runs the backend pipeline (or hits cache)
+    await new Promise(r => setTimeout(r, 700)); // let the flash animation finish
+    isCleaned = true;
+    await renderTable(true);
+    btnText.textContent = '✓ CLEANED';
+    btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+  } catch (e) {
+    console.error(e);
+    btnText.textContent = '⚠ Backend error — retry';
+    btn.style.background = 'linear-gradient(135deg,#ef4444,#b91c1c)';
+  } finally {
+    btn.disabled = false;
+    isAnimating = false;
+  }
+}
+
+// ── CHARTS (live) ───────────────────────────────────────────────────────
+function showChartPanel(id, btn) {
+  document.querySelectorAll('.chart-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+let chartsBuilt = false;
+async function buildCharts() {
+  if (chartsBuilt) return;
+  chartsBuilt = true;
+
+  try {
+    chartsData = await fetchJSON('/api/charts');
+  } catch (e) {
+    console.error('Failed to load chart data:', e);
+    document.querySelectorAll('.insight-box').forEach(b => {
+      b.textContent = 'Could not load chart data — is the backend (app.py) running on port 5000?';
+    });
+    chartsBuilt = false;
+    return;
+  }
+
+  const d = chartsData;
+  const teal = '#6366F1', blue = '#3b82f6', amber = '#f59e0b', red = '#ef4444', green = '#22c55e', purple = '#a855f7';
+  const grid = 'rgba(0,0,0,0.08)';
+  const palette = [teal, blue, amber, red, purple, green, '#ec4899', '#14b8a6'];
+
+  Chart.defaults.color = '#777777';
+  Chart.defaults.font.family = 'Inter';
+  Chart.defaults.font.size = 11;
+
+  const defaultOpts = {
+    responsive: true,
+    plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } } },
+    scales: {
+      x: { grid: { color: grid }, ticks: { color: '#64748b' } },
+      y: { grid: { color: grid }, ticks: { color: '#64748b' } }
+    }
+  };
+
+  // 1. Occupancy by Dept
+  new Chart(document.getElementById('chart-occ-dept'), {
+    type: 'bar',
+    data: { labels: d.occupancy_by_department.labels, datasets: [
+      { label: '2025', data: d.occupancy_by_department['2025'], backgroundColor: teal + 'bb', borderColor: teal, borderWidth: 1 },
+      { label: '2026', data: d.occupancy_by_department['2026'], backgroundColor: blue + 'bb', borderColor: blue, borderWidth: 1 }
+    ]},
+    options: { ...defaultOpts, indexAxis: 'y', plugins: { ...defaultOpts.plugins, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.x.toFixed(1)}%` } } } }
+  });
+  {
+    const labels = d.occupancy_by_department.labels, v25 = d.occupancy_by_department['2025'];
+    const topIdx = v25.indexOf(Math.max(...v25));
+    document.getElementById('insight-occ-dept').innerHTML =
+      `<strong>${labels[topIdx]}</strong> runs the highest average occupancy (${v25[topIdx].toFixed(1)}% in 2025), the department closest to capacity limits across both hospitals' years.`;
+  }
+
+  // 2. Occupancy by Hospital
+  new Chart(document.getElementById('chart-occ-hospital'), {
+    type: 'bar',
+    data: { labels: d.occupancy_by_hospital.labels, datasets: [
+      { label: '2025', data: d.occupancy_by_hospital['2025'], backgroundColor: d.occupancy_by_hospital.labels.map((_, i) => palette[i % palette.length] + 'cc') },
+      { label: '2026', data: d.occupancy_by_hospital['2026'], backgroundColor: d.occupancy_by_hospital.labels.map((_, i) => palette[i % palette.length] + '55'), borderColor: d.occupancy_by_hospital.labels.map((_, i) => palette[i % palette.length]), borderWidth: 2 }
+    ]},
+    options: { ...defaultOpts, plugins: { ...defaultOpts.plugins, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` } } } }
+  });
+  {
+    const labels = d.occupancy_by_hospital.labels, v25 = d.occupancy_by_hospital['2025'];
+    const topIdx = v25.indexOf(Math.max(...v25)), lowIdx = v25.indexOf(Math.min(...v25));
+    document.getElementById('insight-occ-hospital').innerHTML =
+      `<strong>${labels[topIdx]}</strong> had the highest occupancy in 2025 (${v25[topIdx].toFixed(1)}%). <strong>${labels[lowIdx]}</strong> had the most available capacity (${v25[lowIdx].toFixed(1)}%).`;
+  }
+
+  // 3. Wait Time by Hospital
+  new Chart(document.getElementById('chart-wait-hospital'), {
+    type: 'bar',
+    data: { labels: d.wait_by_hospital.labels, datasets: [
+      { label: '2025 (min)', data: d.wait_by_hospital['2025'], backgroundColor: amber + 'cc' },
+      { label: '2026 (min)', data: d.wait_by_hospital['2026'], backgroundColor: green + 'cc' }
+    ]},
+    options: { ...defaultOpts, plugins: { ...defaultOpts.plugins, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} min` } } } }
+  });
+  {
+    const labels = d.wait_by_hospital.labels, v25 = d.wait_by_hospital['2025'], v26 = d.wait_by_hospital['2026'];
+    const allDown = v25.every((v, i) => v26[i] <= v);
+    const slowIdx = v26.indexOf(Math.max(...v26));
+    document.getElementById('insight-wait-hospital').innerHTML =
+      `${allDown ? 'All hospitals reduced' : 'Most hospitals reduced'} average wait time from 2025 to 2026. <strong>${labels[slowIdx]}</strong> remains the slowest in 2026 at ${v26[slowIdx].toFixed(1)} min.`;
+  }
+
+  // 4. Monthly Admissions by Hospital
+  new Chart(document.getElementById('chart-monthly'), {
+    type: 'line',
+    data: { labels: d.monthly_admissions_by_hospital.labels, datasets:
+      d.monthly_admissions_by_hospital.series.map((s, i) => ({ label: s.label, data: s.data, borderColor: palette[i % palette.length], tension: .4, fill: false }))
+    },
+    options: { ...defaultOpts }
+  });
+  {
+    const series = d.monthly_admissions_by_hospital.series;
+    const monthTotals = d.monthly_admissions_by_hospital.labels.map((_, mi) => series.reduce((sum, s) => sum + (s.data[mi] || 0), 0));
+    const peakIdx = monthTotals.indexOf(Math.max(...monthTotals));
+    document.getElementById('insight-monthly').innerHTML =
+      `<strong>${d.monthly_admissions_by_hospital.labels[peakIdx]}</strong> had the highest total admission volume across all hospitals in 2025.`;
+  }
+
+  // 5. Admissions by Dept
+  new Chart(document.getElementById('chart-adm-dept'), {
+    type: 'bar',
+    data: { labels: d.admissions_by_department.labels, datasets: [
+      { label: '2025', data: d.admissions_by_department['2025'], backgroundColor: teal + 'bb' },
+      { label: '2026', data: d.admissions_by_department['2026'], backgroundColor: blue + 'bb' }
+    ]},
+    options: { ...defaultOpts }
+  });
+  {
+    const labels = d.admissions_by_department.labels;
+    document.getElementById('insight-adm-dept').innerHTML =
+      `<strong>${labels[0]}</strong> and <strong>${labels[1]}</strong> account for the largest share of total admissions across both years.`;
+  }
+
+  // 6. Admissions by Region (donut)
+  new Chart(document.getElementById('chart-adm-region'), {
+    type: 'doughnut',
+    data: { labels: d.admissions_by_region.labels, datasets: [{
+      data: d.admissions_by_region.values,
+      backgroundColor: d.admissions_by_region.labels.map((_, i) => palette[i % palette.length] + 'cc'),
+      borderColor: ['#080d18'], borderWidth: 3
+    }]},
+    options: { responsive: true, cutout: '62%', plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } } }
+  });
+  {
+    const labels = d.admissions_by_region.labels, v = d.admissions_by_region.values;
+    const topIdx = v.indexOf(Math.max(...v)), lowIdx = v.indexOf(Math.min(...v));
+    document.getElementById('insight-adm-region').innerHTML =
+      `<strong>${labels[topIdx]}</strong> region leads total admissions (${v[topIdx].toLocaleString()}). <strong>${labels[lowIdx]}</strong> had the lowest volume (${v[lowIdx].toLocaleString()}).`;
+  }
+
+  // 7. Nurse/bed ratio
+  new Chart(document.getElementById('chart-nurse-bed'), {
+    type: 'bar',
+    data: { labels: d.nurse_bed_ratio.labels, datasets: [{
+      label: 'Nurses per bed',
+      data: d.nurse_bed_ratio.values,
+      backgroundColor: d.nurse_bed_ratio.values.map(v => v >= 0.4 ? green + 'cc' : v >= 0.2 ? teal + 'cc' : v >= 0.13 ? amber + 'cc' : red + 'cc')
+    }]},
+    options: { ...defaultOpts, indexAxis: 'y' }
+  });
+  {
+    const labels = d.nurse_bed_ratio.labels, v = d.nurse_bed_ratio.values;
+    const topIdx = v.indexOf(Math.max(...v)), lowIdx = v.indexOf(Math.min(...v));
+    document.getElementById('insight-nurse-bed').innerHTML =
+      `<strong>${labels[topIdx]}</strong> has the highest nurse staffing relative to beds (${v[topIdx].toFixed(2)} per bed). <strong>${labels[lowIdx]}</strong> is the most stretched (${v[lowIdx].toFixed(2)} per bed).`;
+  }
+
+  // 8. Cancellations
+  new Chart(document.getElementById('chart-cancellations'), {
+    type: 'bar',
+    data: { labels: d.cancellations_by_hospital.labels, datasets: [{
+      label: 'Cancellations 2025',
+      data: d.cancellations_by_hospital.values,
+      backgroundColor: d.cancellations_by_hospital.labels.map((_, i) => palette[i % palette.length] + 'cc')
+    }]},
+    options: { ...defaultOpts, plugins: { ...defaultOpts.plugins, legend: { display: false } } }
+  });
+  {
+    const v = d.cancellations_by_hospital.values;
+    const min = Math.min(...v), max = Math.max(...v);
+    document.getElementById('insight-cancellations').innerHTML =
+      `Cancellations range ${min.toLocaleString()}–${max.toLocaleString()} across hospitals — ${max - min < min * 0.15 ? 'broadly distributed, suggesting system-wide pressure rather than a single-site issue' : 'with meaningful variation between sites worth investigating'}.`;
+  }
+
+  // 9. Missing values
+  new Chart(document.getElementById('chart-missing'), {
+    type: 'bar',
+    data: { labels: d.missing_by_column.labels, datasets: [{
+      label: 'Null count (raw 2025)',
+      data: d.missing_by_column.values,
+      backgroundColor: d.missing_by_column.values.map(v => v > 500 ? red + 'dd' : v > 50 ? amber + 'dd' : blue + 'dd')
+    }]},
+    options: { ...defaultOpts, indexAxis: 'y', plugins: { ...defaultOpts.plugins, legend: { display: false } } }
+  });
+  {
+    const labels = d.missing_by_column.labels, v = d.missing_by_column.values;
+    if (labels.length) {
+      document.getElementById('insight-missing').innerHTML =
+        `<code style="color:var(--teal)">${labels[0]}</code> had ${v[0].toLocaleString()} nulls — the largest gap in the raw data, mostly because it's a free-text flag analysts fill in only when something looks off.`;
+    } else {
+      document.getElementById('insight-missing').textContent = 'No missing values found in this column set.';
+    }
+  }
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  loadSummary();
+});
+</script></body>
+</html>
