@@ -246,7 +246,6 @@ def api_charts():
     })
 
 
-if __name__ == "__main__":
-    print("Hospital Capacity dashboard backend starting...")
-    print("Open http://localhost:5000 in your browser.")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+
+
+if __name__ == " __main__\:
