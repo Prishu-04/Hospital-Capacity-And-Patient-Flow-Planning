@@ -31,14 +31,48 @@ Hospital-Capacity/
 
 ## How to run it
 
+1. Clone or download this repo, then move into the project root:
+
+   ```bash
+   cd Hospital-Capacity-And-Patient-Flow-Planning
+   ```
+
+2. (Recommended) Create and activate a virtual environment:
+
+   ```bash
+   python -m venv venv
+   source venv/bin/activate      # Windows: venv\Scripts\activate
+   ```
+
+3. Install the backend dependencies:
+
+   ```bash
+   pip install -r Backend/requirements.txt
+   ```
+
+4. Run the Flask server:
+
+   ```bash
+   python Backend/app.py
+   ```
+
+5. Open **http://localhost:5000** in your browser. That's it — one process
+   serves both the dashboard and the API (no separate frontend server needed).
+
+### Running with gunicorn / deploying
+
+The included `Procfile` is set up for platforms like Heroku/Render:
+
 ```bash
-cd Hospital-Capacity/Backend
-pip install -r requirements.txt
-python app.py
+web: gunicorn Backend.app:app
 ```
 
-Then open **http://localhost:5000** in your browser. That's it — one process
-serves both the dashboard and the API.
+To run it the same way locally:
+
+```bash
+pip install gunicorn
+gunicorn Backend.app:app
+```
 
 ## What's actually happening when you click around
 
